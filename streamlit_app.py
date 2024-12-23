@@ -19,7 +19,6 @@ st.set_page_config(
 
 class ContentAnalyzer:
     def __init__(self, api_key):
-        # Initialize Gemini
         genai.configure(api_key=api_key)
         self.model = genai.GenerativeModel(
             model_name="gemini-1.5-flash",
@@ -29,15 +28,12 @@ class ContentAnalyzer:
                 "max_output_tokens": 8192,
             }
         )
-
-        # Setup logging and output directory
         logging.basicConfig(level=logging.INFO)
         self.logger = logging.getLogger(__name__)
         self.output_dir = "analysis_results"
         os.makedirs(self.output_dir, exist_ok=True)
 
     def analyze_content(self, video_file, audio_file):
-        """Analyze uploaded video and audio content with real-time updates"""
         progress_bar = st.progress(0)
         status_text = st.empty()
         try:
@@ -47,27 +43,16 @@ class ContentAnalyzer:
                 "audio_analysis": None
             }
 
-            # Analyze video if provided
             if video_file is not None:
                 self.logger.info("Analyzing video...")
-                status_text.text("Analyzing video frames...")
                 progress_bar.progress(25)
-                
                 with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as tmp_video:
                     tmp_video.write(video_file.read())
-                    # Create a placeholder for real-time analysis
-                    analysis_placeholder = st.empty()
-                    
-                    # Analyze video with real-time updates
-                    video_analysis = self.analyze_video(
-                        tmp_video.name, 
-                        progress_callback=lambda x: analysis_placeholder.markdown(f"**Current Analysis:**\n{x}")
-                    )
+                    video_analysis = self.analyze_video(tmp_video.name)
                     results["video_analysis"] = video_analysis
                 os.unlink(tmp_video.name)
                 progress_bar.progress(75)
 
-            # Analyze audio if provided
             if audio_file is not None:
                 self.logger.info("Analyzing audio...")
                 with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as tmp_audio:
@@ -76,29 +61,22 @@ class ContentAnalyzer:
                     results["audio_analysis"] = audio_analysis
                 os.unlink(tmp_audio.name)
 
-            # Save results
             self.save_results(results)
-
             return results
 
         except Exception as e:
             self.logger.error(f"Error in analysis: {e}")
             return {"error": str(e)}
 
-    def analyze_video(self, video_path, progress_callback=None):
-        """Analyze video file with real-time frame display and analysis"""
+    def analyze_video(self, video_path):
         try:
             cap = cv2.VideoCapture(video_path)
             fps = cap.get(cv2.CAP_PROP_FPS)
             total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
             
-            # Create analysis placeholder
-            analysis_placeholder = st.empty()
-            
-            # Create progress bar for frame processing
-            progress_text = "Processing video frames..."
-            processing_bar = st.progress(0)
-            st.text(progress_text)
+            progress_bar = st.progress(0)
+            frames_container = st.empty()
+            analysis_container = st.empty()
             
             frames = []
             frame_count = 0
@@ -107,26 +85,18 @@ class ContentAnalyzer:
                 ret, frame = cap.read()
                 if not ret:
                     break
-            
-            while cap.isOpened():
-                ret, frame = cap.read()
-                if not ret:
-                    break
-                    
-                                frame_count += 1
-                if frame_count % int(fps) == 0:  # Process one frame per second
-                    # Convert frame to RGB
+                
+                frame_count += 1
+                if frame_count % int(fps) == 0:
                     rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                     pil_frame = Image.fromarray(rgb_frame)
                     frames.append(pil_frame)
                     
-                    # Update progress bar
                     progress = int((frame_count / total_frames) * 100)
-                    processing_bar.progress(progress)
-                    st.text(f"Processing frame {frame_count} of {total_frames}")
+                    progress_bar.progress(progress)
+                    frames_container.text(f"Processing frame {frame_count}/{total_frames}")
                     
-                    # Analyze current batch of frames
-                    if len(frames) >= 5:  # Analyze every 5 frames
+                    if len(frames) >= 5:
                         prompt = """
                         Analyze these video frames for signs of harassment or concerning behavior.
                         Focus on:
@@ -134,97 +104,79 @@ class ContentAnalyzer:
                         2. Signs of distress or danger
                         3. Unsafe situations
                         4. Suspicious patterns
-
+                        
                         Based on training with Bengali content, provide a detailed assessment.
                         """
-
+                        
                         chat = self.model.start_chat(history=[])
                         response = chat.send_message([prompt, *frames])
+                        current_time = datetime.now().strftime("%H:%M:%S")
+                        analysis_container.markdown(f"""
+                        ### 🎥 Analysis Update ({current_time})
+                        **Segment:** Frames {frame_count-5} to {frame_count}
                         
-                        analysis_placeholder.markdown(f"""
-                        ### Frame {frame_count} Analysis
                         {response.text}
+                        ---
                         """)
-                        
                         frames = []
             
             cap.release()
-            return "Video analysis complete"
-
+            return "Video analysis completed"
+            
         except Exception as e:
             self.logger.error(f"Error in video analysis: {e}")
             return None
 
     def analyze_audio(self, audio_path):
-        """Analyze audio file"""
         try:
-            features = self.extract_audio_features(audio_path)
-
+            y, sr = librosa.load(audio_path)
+            features = {
+                'duration': float(len(y) / sr),
+                'rms_energy': float(librosa.feature.rms(y=y).mean()),
+                'spectral_centroid': float(librosa.feature.spectral_centroid(y=y).mean()),
+                'zero_crossing_rate': float(librosa.feature.zero_crossing_rate(y).mean())
+            }
+            
             prompt = f"""
             Analyze these audio characteristics for concerning content:
-
-            Audio Features:
-            - Duration: {features['duration']:.2f} seconds
-            - Energy Level: {features['rms_energy']:.4f}
-            - Spectral Features: {features['spectral_centroid']:.2f}
-            - Voice Patterns: {features['zero_crossing_rate']:.4f}
-
+            Duration: {features['duration']:.2f} seconds
+            Energy Level: {features['rms_energy']:.4f}
+            Spectral Features: {features['spectral_centroid']:.2f}
+            Voice Patterns: {features['zero_crossing_rate']:.4f}
+            
             Based on training with Bengali audio content:
-            1. Identify any concerning speech patterns
+            1. Identify concerning speech patterns
             2. Detect aggressive or threatening tones
             3. Analyze emotional indicators
-            4. Note any suspicious audio elements
+            4. Note suspicious audio elements
             """
-
+            
             chat = self.model.start_chat(history=[])
             response = chat.send_message(prompt)
             return response.text
-
+            
         except Exception as e:
             self.logger.error(f"Error in audio analysis: {e}")
             return None
 
-    def extract_audio_features(self, audio_path):
-        """Extract audio features"""
-        y, sr = librosa.load(audio_path)
-        return {
-            'duration': float(len(y) / sr),
-            'rms_energy': float(librosa.feature.rms(y=y).mean()),
-            'spectral_centroid': float(librosa.feature.spectral_centroid(y=y).mean()),
-            'zero_crossing_rate': float(librosa.feature.zero_crossing_rate(y).mean())
-        }
-
     def save_results(self, results):
-        """Save analysis results"""
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         output_file = os.path.join(self.output_dir, f"analysis_{timestamp}.json")
-
         with open(output_file, 'w', encoding='utf-8') as f:
             json.dump(results, f, ensure_ascii=False, indent=2)
-
-        self.logger.info(f"Results saved to {output_file}")
         return output_file
 
 def main():
     st.title("Content Analysis System")
     
-    # Custom CSS for layout
     st.markdown("""
         <style>
-        .stVideo {
-            width: 100%;
-            height: auto;
-        }
-        .css-1y4p8pa {
-            padding-top: 0rem;
-        }
-        .block-container {
-            padding-top: 1rem;
-        }
+        .stVideo {width: 100%; height: auto;}
+        .css-1y4p8pa {padding-top: 0rem;}
+        .block-container {padding-top: 1rem;}
         </style>
     """, unsafe_allow_html=True)
 
-    # Sidebar for API key
     with st.sidebar:
         st.header("Configuration")
         api_key = st.text_input("Enter Gemini API Key", type="password")
@@ -237,7 +189,6 @@ def main():
         - Download results
         """)
 
-    # Main content area with two columns
     col1, col2 = st.columns(2, gap="large")
 
     with col1:
@@ -246,27 +197,19 @@ def main():
         audio_file = st.file_uploader("Upload Audio", type=['wav', 'mp3'])
         
         if video_file is not None:
-            # Save video file to temp location for video player
             with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as tmp_video:
                 tmp_video.write(video_file.getbuffer())
-                video_path = tmp_video.name
-            
-            # Video player
-            st.video(video_path, start_time=0)
-            
-            # File details in expander
-            with st.expander("File Details"):
-                st.json({
-                    "FileName": video_file.name,
-                    "FileType": video_file.type,
-                    "FileSize": f"{video_file.size / 1024:.2f} KB"
-                })
-            
-            # Clean up temp file
-            try:
-                os.unlink(video_path)
-            except:
-                pass
+                st.video(tmp_video.name)
+                with st.expander("File Details"):
+                    st.json({
+                        "FileName": video_file.name,
+                        "FileType": video_file.type,
+                        "FileSize": f"{video_file.size / 1024:.2f} KB"
+                    })
+                try:
+                    os.unlink(tmp_video.name)
+                except:
+                    pass
 
         if audio_file is not None:
             st.subheader("Audio Player")
@@ -281,47 +224,26 @@ def main():
     with col2:
         st.subheader("Real-time Analysis")
         analyze_button = st.button(
-            "Start Analysis", 
+            "Start Analysis",
             disabled=not api_key or (not video_file and not audio_file),
             type="primary"
         )
 
         if analyze_button:
             if api_key:
-                with st.spinner("Initializing analysis..."):
-                    analyzer = ContentAnalyzer(api_key=api_key)
-                    
-                    # Create containers for live updates
-                    progress_container = st.container()
-                    analysis_container = st.container()
-                    
-                    with progress_container:
-                        st.markdown("### Analysis Progress")
-                        progress_bar = st.progress(0)
-                        status = st.empty()
-                    
-                    with analysis_container:
-                        st.markdown("### Live Analysis")
-                        analysis_placeholder = st.empty()
-                    
-                    # Start analysis
-                    st.session_state.results = analyzer.analyze_content(
-                        video_file, 
-                        audio_file
+                analyzer = ContentAnalyzer(api_key=api_key)
+                results = analyzer.analyze_content(video_file, audio_file)
+                
+                if "error" not in results:
+                    st.success("Analysis complete!")
+                    st.download_button(
+                        "Download Analysis Report (JSON)",
+                        data=json.dumps(results, indent=2),
+                        file_name=f"analysis_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+                        mime="application/json"
                     )
-                    
-                    if "error" not in st.session_state.results:
-                        st.success("Analysis complete!")
-                        
-                        # Show download button
-                        st.download_button(
-                            label="Download Analysis Report (JSON)",
-                            data=json.dumps(st.session_state.results, indent=2),
-                            file_name=f"analysis_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
-                            mime="application/json"
-                        )
-                    else:
-                        st.error(f"Analysis failed: {st.session_state.results['error']}")
+                else:
+                    st.error(f"Analysis failed: {results['error']}")
             else:
                 st.warning("Please enter your Gemini API key")
 
