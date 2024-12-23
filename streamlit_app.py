@@ -39,7 +39,9 @@ class ContentAnalyzer:
         os.makedirs(self.output_dir, exist_ok=True)
 
     def analyze_content(self, video_file, audio_file):
-        """Analyze uploaded video and audio content"""
+        """Analyze uploaded video and audio content with real-time updates"""
+        progress_bar = st.progress(0)
+        status_text = st.empty()
         try:
             results = {
                 "timestamp": datetime.now().isoformat(),
@@ -50,11 +52,22 @@ class ContentAnalyzer:
             # Analyze video if provided
             if video_file is not None:
                 self.logger.info("Analyzing video...")
+                status_text.text("Analyzing video frames...")
+                progress_bar.progress(25)
+                
                 with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as tmp_video:
                     tmp_video.write(video_file.read())
-                    video_analysis = self.analyze_video(tmp_video.name)
+                    # Create a placeholder for real-time analysis
+                    analysis_placeholder = st.empty()
+                    
+                    # Analyze video with real-time updates
+                    video_analysis = self.analyze_video(
+                        tmp_video.name, 
+                        progress_callback=lambda x: analysis_placeholder.markdown(f"**Current Analysis:**\n{x}")
+                    )
                     results["video_analysis"] = video_analysis
                 os.unlink(tmp_video.name)
+                progress_bar.progress(75)
 
             # Analyze audio if provided
             if audio_file is not None:
@@ -74,8 +87,8 @@ class ContentAnalyzer:
             self.logger.error(f"Error in analysis: {e}")
             return {"error": str(e)}
 
-    def analyze_video(self, video_path):
-        """Analyze video file"""
+    def analyze_video(self, video_path, progress_callback=None):
+        """Analyze video file with real-time updates"""
         try:
             frames = self.extract_frames(video_path)
             pil_frames = [Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
@@ -93,8 +106,20 @@ class ContentAnalyzer:
             """
 
             chat = self.model.start_chat(history=[])
-            response = chat.send_message([prompt, *pil_frames[:10]])
-            return response.text
+            
+            # Analyze frames in chunks for real-time updates
+            chunk_size = 2
+            analysis_text = ""
+            
+            for i in range(0, len(pil_frames[:10]), chunk_size):
+                chunk = pil_frames[i:i + chunk_size]
+                chunk_response = chat.send_message([prompt, *chunk])
+                analysis_text += chunk_response.text + "\n\n"
+                
+                if progress_callback:
+                    progress_callback(analysis_text)
+            
+            return analysis_text
 
         except Exception as e:
             self.logger.error(f"Error in video analysis: {e}")
@@ -170,7 +195,17 @@ class ContentAnalyzer:
 
 def main():
     st.title("Content Analysis System")
-    st.write("Upload video or audio files to analyze for concerning content")
+    st.write("Upload video or audio files for real-time analysis")
+    
+    # Custom CSS for video player
+    st.markdown("""
+        <style>
+        .stVideo {
+            width: 100%;
+            height: auto;
+        }
+        </style>
+    """, unsafe_allow_html=True)
 
     # Initialize session state for results
     if 'results' not in st.session_state:
@@ -192,13 +227,27 @@ def main():
         - Download results
         """)
 
-    # Main content area
-    col1, col2 = st.columns(2)
+    # Main content area with three columns for better layout
+    col1, col2, col3 = st.columns([1, 0.2, 1])
 
     with col1:
-        st.subheader("Upload Files")
+        st.subheader("Media Upload & Playback")
         video_file = st.file_uploader("Upload Video", type=['mp4', 'avi', 'mov'])
         audio_file = st.file_uploader("Upload Audio", type=['wav', 'mp3'])
+        
+        # Video player
+        if video_file is not None:
+            # Create a temporary file to store the video
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as tmp_video:
+                tmp_video.write(video_file.getvalue())
+                video_path = tmp_video.name
+            
+            # Display video player
+            st.video(video_file)
+            
+        # Audio player
+        if audio_file is not None:
+            st.audio(audio_file)
 
         if st.button("Analyze Content", disabled=not api_key or (not video_file and not audio_file)):
             if api_key:
@@ -212,8 +261,13 @@ def main():
             else:
                 st.warning("Please enter your Gemini API key")
 
+    # Empty middle column for spacing
     with col2:
-        st.subheader("Analysis Results")
+        st.empty()
+        
+    # Analysis results column
+    with col3:
+        st.subheader("Real-time Analysis")
         if st.session_state.results and "error" not in st.session_state.results:
             # Display timestamp
             st.text(f"🕒 Analysis completed at: {st.session_state.results['timestamp']}")
