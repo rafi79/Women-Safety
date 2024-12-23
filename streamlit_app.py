@@ -477,27 +477,27 @@ def main():
         if analyze_button:
             analyzer = WomenSafetyAnalyzer(api_key=api_key)
             results = analyzer.analyze_content(video_file, audio_file)
+            
+            if "error" not in results:
+                risk_level = results.get("risk_level", "LOW")
+                st.markdown(f"""
+                ### Overall Risk Assessment
+                <div class='{risk_level.lower()}-risk'>Risk Level: {risk_level}</div>
+                """, unsafe_allow_html=True)
                 
-                if "error" not in results:
-                    risk_level = results.get("risk_level", "LOW")
-                    st.markdown(f"""
-                    ### Overall Risk Assessment
-                    <div class='{risk_level.lower()}-risk'>Risk Level: {risk_level}</div>
-                    """, unsafe_allow_html=True)
-                    
-                    st.subheader("Safety Recommendations")
-                    for rec in results.get("safety_recommendations", []):
-                        st.warning(rec)
-                    
-                    st.success("Safety analysis complete!")
-                    st.download_button(
-                        "Download Safety Report (JSON)",
-                        data=json.dumps(results, indent=2),
-                        file_name=f"safety_analysis_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
-                        mime="application/json"
-                    )
-                else:
-                    st.error(f"Safety analysis failed: {results['error']}")
+                st.subheader("Safety Recommendations")
+                for rec in results.get("safety_recommendations", []):
+                    st.warning(rec)
+                
+                st.success("Safety analysis complete!")
+                st.download_button(
+                    "Download Safety Report (JSON)",
+                    data=json.dumps(results, indent=2),
+                    file_name=f"safety_analysis_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+                    mime="application/json"
+                )
+            else:
+                st.error(f"Safety analysis failed: {results['error']}")
             else:
                 st.warning("Please enter your Gemini API key to begin analysis")
 
