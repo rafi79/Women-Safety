@@ -141,14 +141,11 @@ class ContentAnalyzer:
                         chat = self.model.start_chat(history=[])
                         response = chat.send_message([prompt, *frames])
                         
-                        # Update analysis display
-                        current_analysis = f"""
+                        analysis_placeholder.markdown(f"""
                         ### Frame {frame_count} Analysis
                         {response.text}
-                        """
-                        analysis_placeholder.markdown(current_analysis)
+                        """)
                         
-                        # Clear frames buffer
                         frames = []
             
             cap.release()
