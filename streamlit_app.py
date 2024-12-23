@@ -88,11 +88,35 @@ class ContentAnalyzer:
             return {"error": str(e)}
 
     def analyze_video(self, video_path, progress_callback=None):
-        """Analyze video file with real-time updates"""
+        """Analyze video file with real-time frame display and analysis"""
         try:
-            frames = self.extract_frames(video_path)
-            pil_frames = [Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-                         for frame in frames]
+            cap = cv2.VideoCapture(video_path)
+            fps = cap.get(cv2.CAP_PROP_FPS)
+            
+            # Create placeholders for frame and analysis
+            frame_placeholder = st.empty()
+            analysis_placeholder = st.empty()
+            
+            frames = []
+            frame_count = 0
+            
+            while cap.isOpened():
+                ret, frame = cap.read()
+                if not ret:
+                    break
+                    
+                frame_count += 1
+                if frame_count % int(fps) == 0:  # Process one frame per second
+                    # Convert frame to RGB for display
+                    rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    pil_frame = Image.fromarray(rgb_frame)
+                    
+                    # Display the current frame
+                    frame_placeholder.image(pil_frame, caption=f"Frame {frame_count}")
+                    frames.append(pil_frame)
+                    
+                    # Analyze current batch of frames
+                    if len(frames) >= 5:  # Analyze every 5 frames
 
             prompt = """
             Analyze these video frames for signs of harassment or concerning behavior.
@@ -105,21 +129,21 @@ class ContentAnalyzer:
             Based on training with Bengali content, provide a detailed assessment.
             """
 
-            chat = self.model.start_chat(history=[])
+                        chat = self.model.start_chat(history=[])
+                        response = chat.send_message([prompt, *frames])
+                        
+                        # Update analysis display
+                        current_analysis = f"""
+                        ### Frame {frame_count} Analysis
+                        {response.text}
+                        """
+                        analysis_placeholder.markdown(current_analysis)
+                        
+                        # Clear frames buffer
+                        frames = []
             
-            # Analyze frames in chunks for real-time updates
-            chunk_size = 2
-            analysis_text = ""
-            
-            for i in range(0, len(pil_frames[:10]), chunk_size):
-                chunk = pil_frames[i:i + chunk_size]
-                chunk_response = chat.send_message([prompt, *chunk])
-                analysis_text += chunk_response.text + "\n\n"
-                
-                if progress_callback:
-                    progress_callback(analysis_text)
-            
-            return analysis_text
+            cap.release()
+            return "Video analysis complete"
 
         except Exception as e:
             self.logger.error(f"Error in video analysis: {e}")
