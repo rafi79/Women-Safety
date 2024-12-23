@@ -98,6 +98,7 @@ class ContentAnalyzer:
             # Create progress bar for frame processing
             progress_text = "Processing video frames..."
             processing_bar = st.progress(0)
+            st.text(progress_text)
             
             frames = []
             frame_count = 0
@@ -106,8 +107,13 @@ class ContentAnalyzer:
                 ret, frame = cap.read()
                 if not ret:
                     break
+            
+            while cap.isOpened():
+                ret, frame = cap.read()
+                if not ret:
+                    break
                     
-                                    frame_count += 1
+                                frame_count += 1
                 if frame_count % int(fps) == 0:  # Process one frame per second
                     # Convert frame to RGB
                     rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
