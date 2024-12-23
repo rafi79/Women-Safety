@@ -234,17 +234,27 @@ def main():
     col1, col2 = st.columns(2)
 
     with col1:
-        st.subheader("Video Input")
+        st.subheader("File Input")
         video_file = st.file_uploader("Upload Video", type=['mp4', 'avi', 'mov'])
+        audio_file = st.file_uploader("Upload Audio", type=['wav', 'mp3'])
         
         if video_file is not None:
-            # File info
+            st.write("Video File Details:")
             file_details = {
                 "FileName": video_file.name,
                 "FileType": video_file.type,
                 "FileSize": f"{video_file.size / 1024:.2f} KB"
             }
-            st.write("File Details:", file_details)
+            st.write(file_details)
+            
+        if audio_file is not None:
+            st.write("Audio File Details:")
+            file_details = {
+                "FileName": audio_file.name,
+                "FileType": audio_file.type,
+                "FileSize": f"{audio_file.size / 1024:.2f} KB"
+            }
+            st.write(file_details)
             
     with col2:
         st.subheader("Real-time Analysis")
