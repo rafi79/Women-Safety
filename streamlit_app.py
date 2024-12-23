@@ -90,10 +90,14 @@ class ContentAnalyzer:
         try:
             cap = cv2.VideoCapture(video_path)
             fps = cap.get(cv2.CAP_PROP_FPS)
+            total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
             
-            # Create placeholders for frame and analysis
-            frame_placeholder = st.empty()
+            # Create analysis placeholder
             analysis_placeholder = st.empty()
+            
+            # Create progress bar for frame processing
+            progress_text = "Processing video frames..."
+            processing_bar = st.progress(0)
             
             frames = []
             frame_count = 0
@@ -103,15 +107,17 @@ class ContentAnalyzer:
                 if not ret:
                     break
                     
-                frame_count += 1
+                                    frame_count += 1
                 if frame_count % int(fps) == 0:  # Process one frame per second
-                    # Convert frame to RGB for display
+                    # Convert frame to RGB
                     rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                     pil_frame = Image.fromarray(rgb_frame)
-                    
-                    # Display the current frame
-                    frame_placeholder.image(pil_frame, caption=f"Frame {frame_count}")
                     frames.append(pil_frame)
+                    
+                    # Update progress bar
+                    progress = int((frame_count / total_frames) * 100)
+                    processing_bar.progress(progress)
+                    st.text(f"Processing frame {frame_count} of {total_frames}")
                     
                     # Analyze current batch of frames
                     if len(frames) >= 5:  # Analyze every 5 frames
@@ -239,6 +245,14 @@ def main():
         audio_file = st.file_uploader("Upload Audio", type=['wav', 'mp3'])
         
         if video_file is not None:
+            # Save video file to temp location for video player
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as tmp_video:
+                tmp_video.write(video_file.getbuffer())
+                video_path = tmp_video.name
+            
+            # Video player with custom styling
+            st.video(video_path)
+            
             st.write("Video File Details:")
             file_details = {
                 "FileName": video_file.name,
@@ -246,6 +260,12 @@ def main():
                 "FileSize": f"{video_file.size / 1024:.2f} KB"
             }
             st.write(file_details)
+            
+            # Clean up temp file
+            try:
+                os.unlink(video_path)
+            except:
+                pass
             
         if audio_file is not None:
             st.write("Audio File Details:")
@@ -255,6 +275,9 @@ def main():
                 "FileSize": f"{audio_file.size / 1024:.2f} KB"
             }
             st.write(file_details)
+            
+            # Add audio player if audio file is uploaded
+            st.audio(audio_file)
             
     with col2:
         st.subheader("Real-time Analysis")
