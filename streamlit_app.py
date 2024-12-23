@@ -73,12 +73,19 @@ class WomenSafetyAnalyzer:
                         Analyze these frames for women's safety concerns, focusing on:
                         • Unwanted physical contact or assault
                         • Sexual harassment or inappropriate behavior
-                        • Stalking or following
+                        • Stalking or following behavior
                         • Threatening gestures or postures
                         • Signs of distress or fear
                         • Group intimidation
+                        • Workplace harassment
+                        • Public transport safety issues
+                        • Domestic violence indicators
+                        • Unsafe environment conditions
                         
-                        Provide a clear assessment of any safety threats detected.
+                        Provide a clear assessment of:
+                        1. Type of safety threat detected
+                        2. Severity level of the concern
+                        3. Immediate action recommendations
                         """
                         
                         chat = self.model.start_chat(history=[])
@@ -110,10 +117,17 @@ class WomenSafetyAnalyzer:
             
             Focus on detecting:
             • Distressed vocals or crying
-            • Verbal harassment
+            • Verbal harassment or threats
             • Calls for help
-            • Threatening tones
-            • Signs of struggle
+            • Aggressive or threatening tones
+            • Signs of struggle or distress
+            • Verbal abuse indicators
+            • Emergency situations
+            
+            Provide analysis of:
+            1. Type of audio threat detected
+            2. Urgency level of the situation
+            3. Recommended response actions
             """
             
             chat = self.model.start_chat(history=[])
@@ -192,14 +206,14 @@ def main():
 
     with col2:
         st.subheader("Analysis Results")
-        analyze_button = st.button("Begin Analysis", 
+        analyze_button = st.button("Begin Safety Analysis", 
                                 type="primary",
                                 use_container_width=True,
                                 disabled=(not video_file and not audio_file))
 
         if analyze_button:
             analyzer = WomenSafetyAnalyzer()
-            with st.spinner("Analyzing content..."):
+            with st.spinner("Analyzing content for safety concerns..."):
                 results = analyzer.analyze_content(video_file, audio_file)
                 
                 if results.get("video_analysis") or results.get("audio_analysis"):
@@ -215,13 +229,12 @@ def main():
                     
                     st.markdown("</div></div>", unsafe_allow_html=True)
                     
-                    # Single download button outside the markdown
                     st.download_button(
-                        label="Download Full Report",
+                        label="Download Safety Report",
                         data=json.dumps(results, indent=2),
                         file_name=f"safety_analysis_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
                         mime="application/json",
-                        key="download_button"  # Unique key added
+                        key="download_report"
                     )
                 else:
                     st.error("Analysis failed or no safety concerns detected.")
