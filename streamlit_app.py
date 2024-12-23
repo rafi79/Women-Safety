@@ -55,6 +55,64 @@ st.markdown("""
         font-family: 'Arial', sans-serif;
     }
     
+    /* Results Section Styling */
+    .results-container {
+        background: linear-gradient(45deg, #2b1f47, #1a1a2e);
+        border-radius: 15px;
+        padding: 1.5rem;
+        margin-bottom: 1rem;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    }
+    
+    .risk-card {
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 10px;
+        padding: 1rem;
+        margin-bottom: 1rem;
+        border-left: 4px solid;
+    }
+    
+    .risk-high {
+        border-color: #ff4444;
+        background: rgba(255, 68, 68, 0.1);
+    }
+    
+    .risk-medium {
+        border-color: #ffbb33;
+        background: rgba(255, 187, 51, 0.1);
+    }
+    
+    .risk-low {
+        border-color: #00C851;
+        background: rgba(0, 200, 81, 0.1);
+    }
+    
+    .risk-indicator {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 0.5rem;
+    }
+    
+    .risk-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+    }
+    
+    .risk-title {
+        color: white;
+        font-size: 1.2rem;
+        font-weight: bold;
+    }
+    
+    .analysis-section {
+        background: rgba(255, 255, 255, 0.03);
+        border-radius: 8px;
+        padding: 1rem;
+        margin-top: 1rem;
+    }
+
     /* Upload Box Styling */
     .upload-container {
         background: rgba(255, 255, 255, 0.05);
@@ -244,11 +302,41 @@ class WomenSafetyAnalyzer:
             self.logger.error(f"Error in audio safety analysis: {e}")
             return None
 
+    def calculate_risk_factors(self, analysis_text):
+        risk_factors = {
+            'high': {
+                'keywords': ['assault', 'violence', 'forced', 'threatening', 'danger', 'emergency'],
+                'found': []
+            },
+            'medium': {
+                'keywords': ['harassment', 'following', 'uncomfortable', 'suspicious', 'intimidation'],
+                'found': []
+            },
+            'low': {
+                'keywords': ['uncertain', 'possible', 'mild', 'potential', 'unclear'],
+                'found': []
+            }
+        }
+        
+        text = analysis_text.lower()
+        for level in risk_factors:
+            for keyword in risk_factors[level]['keywords']:
+                if keyword in text:
+                    risk_factors[level]['found'].append(keyword)
+        
+        return risk_factors
+
     def analyze_content(self, video_file, audio_file):
         results = {
             "timestamp": datetime.now().isoformat(),
             "video_analysis": None,
-            "audio_analysis": None
+            "audio_analysis": None,
+            "risk_factors": {
+                "high": [],
+                "medium": [],
+                "low": []
+            },
+            "overall_risk_level": "LOW"
         }
 
         if video_file:
@@ -336,14 +424,71 @@ def main():
                 if results.get("video_analysis") or results.get("audio_analysis"):
                     st.success("Analysis complete!")
                     
+                    st.markdown("""
+                        <div class="results-container">
+                            <h2 style="color: white; margin-bottom: 1.5rem;">Safety Analysis Results</h2>
+                            
+                            <div class="risk-card risk-high">
+                                <div class="risk-indicator">
+                                    <div class="risk-dot" style="background: #ff4444;"></div>
+                                    <div class="risk-title">High Risk Factors</div>
+                                </div>
+                                <ul style="color: #ff4444;">
+                                    <li>Physical assault or violence indicators</li>
+                                    <li>Immediate danger signs</li>
+                                    <li>Emergency situations</li>
+                                    <li>Direct threats detected</li>
+                                </ul>
+                            </div>
+                            
+                            <div class="risk-card risk-medium">
+                                <div class="risk-indicator">
+                                    <div class="risk-dot" style="background: #ffbb33;"></div>
+                                    <div class="risk-title">Medium Risk Factors</div>
+                                </div>
+                                <ul style="color: #ffbb33;">
+                                    <li>Harassment indicators</li>
+                                    <li>Suspicious following behavior</li>
+                                    <li>Uncomfortable situations</li>
+                                    <li>Potential threats</li>
+                                </ul>
+                            </div>
+                            
+                            <div class="risk-card risk-low">
+                                <div class="risk-indicator">
+                                    <div class="risk-dot" style="background: #00C851;"></div>
+                                    <div class="risk-title">Low Risk Factors</div>
+                                </div>
+                                <ul style="color: #00C851;">
+                                    <li>Mild concerns</li>
+                                    <li>Potential issues</li>
+                                    <li>Uncertain situations</li>
+                                    <li>General safety considerations</li>
+                                </ul>
+                            </div>
+                            
+                            <div class="analysis-section">
+                    """, unsafe_allow_html=True)
+                    
                     if results.get("video_analysis"):
-                        st.subheader("Video Analysis Results")
+                        st.markdown("<h3 style='color: white;'>Video Analysis Details</h3>", unsafe_allow_html=True)
                         for concern in results["video_analysis"]:
-                            st.warning(concern["analysis"])
+                            st.markdown(f"""
+                                <div style="background: rgba(255,255,255,0.05); padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
+                                    <div style="color: #FF69B4; font-weight: bold;">Timestamp: {concern["timestamp"]}</div>
+                                    <div style="color: white; margin-top: 0.5rem;">{concern["analysis"]}</div>
+                                </div>
+                            """, unsafe_allow_html=True)
                     
                     if results.get("audio_analysis"):
-                        st.subheader("Audio Analysis Results")
-                        st.warning(results["audio_analysis"])
+                        st.markdown("<h3 style='color: white;'>Audio Analysis Details</h3>", unsafe_allow_html=True)
+                        st.markdown(f"""
+                            <div style="background: rgba(255,255,255,0.05); padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
+                                <div style="color: white;">{results["audio_analysis"]}</div>
+                            </div>
+                        """, unsafe_allow_html=True)
+                    
+                    st.markdown("</div></div>", unsafe_allow_html=True)
                     
                     # Offer download of complete analysis
                     st.download_button(
