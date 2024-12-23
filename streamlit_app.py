@@ -15,8 +15,6 @@ try:
 except ImportError as e:
     st.error(f"Failed to import google.generativeai: {str(e)}")
     st.info("Please check if google-generativeai is properly installed")
-
-
 import streamlit as st
 import google.generativeai as genai
 import cv2
