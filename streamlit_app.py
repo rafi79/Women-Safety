@@ -1,13 +1,4 @@
 import streamlit as st
-
-# Must be the first Streamlit command
-st.set_page_config(
-    page_title="Content Analysis System",
-    page_icon="📊",
-    layout="wide"
-)
-
-# Rest of the imports
 import google.generativeai as genai
 import cv2
 import numpy as np
@@ -18,6 +9,13 @@ import json
 from datetime import datetime
 import logging
 import tempfile
+
+# Must be the first Streamlit command
+st.set_page_config(
+    page_title="Content Analysis System",
+    page_icon="📊",
+    layout="wide"
+)
 
 class ContentAnalyzer:
     def __init__(self, api_key):
@@ -117,17 +115,16 @@ class ContentAnalyzer:
                     
                     # Analyze current batch of frames
                     if len(frames) >= 5:  # Analyze every 5 frames
+                        prompt = """
+                        Analyze these video frames for signs of harassment or concerning behavior.
+                        Focus on:
+                        1. Aggressive or threatening movements
+                        2. Signs of distress or danger
+                        3. Unsafe situations
+                        4. Suspicious patterns
 
-            prompt = """
-            Analyze these video frames for signs of harassment or concerning behavior.
-            Focus on:
-            1. Aggressive or threatening movements
-            2. Signs of distress or danger
-            3. Unsafe situations
-            4. Suspicious patterns
-
-            Based on training with Bengali content, provide a detailed assessment.
-            """
+                        Based on training with Bengali content, provide a detailed assessment.
+                        """
 
                         chat = self.model.start_chat(history=[])
                         response = chat.send_message([prompt, *frames])
@@ -177,24 +174,6 @@ class ContentAnalyzer:
         except Exception as e:
             self.logger.error(f"Error in audio analysis: {e}")
             return None
-
-    def extract_frames(self, video_path, max_frames=10):
-        """Extract frames from video file"""
-        frames = []
-        cap = cv2.VideoCapture(video_path)
-        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        interval = max(1, total_frames // max_frames)
-
-        for i in range(0, total_frames, interval):
-            cap.set(cv2.CAP_PROP_POS_FRAMES, i)
-            ret, frame = cap.read()
-            if ret:
-                frames.append(frame)
-            if len(frames) >= max_frames:
-                break
-
-        cap.release()
-        return frames
 
     def extract_audio_features(self, audio_path):
         """Extract audio features"""
@@ -283,36 +262,28 @@ def main():
             else:
                 st.warning("Please enter your Gemini API key")
 
-    # Empty middle column for spacing
-    with col2:
-        st.empty()
-        
-    # Analysis results column
-    with col3:
-        st.subheader("Real-time Analysis")
-        if st.session_state.results and "error" not in st.session_state.results:
-            # Display timestamp
-            st.text(f"🕒 Analysis completed at: {st.session_state.results['timestamp']}")
+    # Display results if available
+    if st.session_state.results and "error" not in st.session_state.results:
+        st.markdown("### Analysis Results")
+        st.text(f"🕒 Analysis completed at: {st.session_state.results['timestamp']}")
 
-            # Display video analysis
-            if st.session_state.results["video_analysis"]:
-                st.markdown("### 🎥 Video Analysis")
-                st.markdown("---")
-                st.write(st.session_state.results["video_analysis"])
+        if st.session_state.results["video_analysis"]:
+            st.markdown("### 🎥 Video Analysis")
+            st.markdown("---")
+            st.write(st.session_state.results["video_analysis"])
 
-            # Display audio analysis
-            if st.session_state.results["audio_analysis"]:
-                st.markdown("### 🔊 Audio Analysis")
-                st.markdown("---")
-                st.write(st.session_state.results["audio_analysis"])
+        if st.session_state.results["audio_analysis"]:
+            st.markdown("### 🔊 Audio Analysis")
+            st.markdown("---")
+            st.write(st.session_state.results["audio_analysis"])
 
-            # Download button
-            st.download_button(
-                label="Download Results (JSON)",
-                data=json.dumps(st.session_state.results, indent=2),
-                file_name=f"analysis_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
-                mime="application/json"
-            )
+        # Download button
+        st.download_button(
+            label="Download Results (JSON)",
+            data=json.dumps(st.session_state.results, indent=2),
+            file_name=f"analysis_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+            mime="application/json"
+        )
 
 if __name__ == "__main__":
     main()
