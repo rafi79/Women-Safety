@@ -268,8 +268,8 @@ class WomenSafetyAnalyzer:
         return output_file
 
 def main():
-    # Default API key
-    DEFAULT_API_KEY = "AIzaSyCcMZPrzP5me7Rl4pmAc1Nn5vUDSan5Q6E"
+    # Hardcoded API key
+    api_key = "AIzaSyCcMZPrzP5me7Rl4pmAc1Nn5vUDSan5Q6E"
     
     st.markdown("""
         <div class="header-container">
@@ -319,6 +319,62 @@ def main():
             font-family: 'Arial', sans-serif;
         }
         
+        /* Upload Box Styling */
+        .upload-container {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            padding: 0.8rem;
+            margin-bottom: 1rem;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.3s ease;
+        }
+
+        .upload-container:hover {
+            background: rgba(255, 255, 255, 0.08);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        .upload-title {
+            color: #FF69B4;
+            font-size: 1.1rem;
+            font-weight: 500;
+            margin-bottom: 0.5rem;
+        }
+
+        .upload-box {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+            padding: 0.8rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            min-height: 60px;
+        }
+
+        .upload-icon {
+            color: #FF69B4;
+            font-size: 1.5rem;
+        }
+
+        .upload-limit {
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.6);
+            margin-top: 0.3rem;
+        }
+
+        .browse-button {
+            background: rgba(255, 105, 180, 0.2);
+            color: #FF69B4;
+            padding: 0.4rem 0.8rem;
+            border-radius: 5px;
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+        }
+
+        .browse-button:hover {
+            background: rgba(255, 105, 180, 0.3);
+        }
+
         /* Flower Decorations */
         .flower {
             position: absolute;
@@ -345,9 +401,6 @@ def main():
     """, unsafe_allow_html=True)
 
     with st.sidebar:
-        st.header("System Configuration")
-        api_key = st.text_input("Enter Gemini API Key (Optional)", value=DEFAULT_API_KEY, type="password")
-        st.markdown("---")
         st.markdown("""
         ### Safety Analysis Features
         - Real-time safety threat detection
@@ -361,9 +414,32 @@ def main():
     col1, col2 = st.columns(2, gap="large")
 
     with col1:
-        st.subheader("Video Analysis")
-        video_file = st.file_uploader("Upload Video for Safety Analysis", type=['mp4', 'avi', 'mov'])
-        audio_file = st.file_uploader("Upload Audio for Distress Analysis", type=['wav', 'mp3'])
+        st.markdown("""
+            <div class="upload-container">
+                <div class="upload-title">📹 Video Analysis</div>
+                <div class="upload-box">
+                    <span class="upload-icon">⬆️</span>
+                    <div style="flex-grow: 1;">
+                        <div>Drag and drop video here</div>
+                        <div class="upload-limit">Limit 200MB per file • MP4, AVI, MOV, MPEG4</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="upload-container">
+                <div class="upload-title">🎤 Audio Analysis</div>
+                <div class="upload-box">
+                    <span class="upload-icon">⬆️</span>
+                    <div style="flex-grow: 1;">
+                        <div>Drag and drop audio here</div>
+                        <div class="upload-limit">Limit 200MB per file • WAV, MP3</div>
+                    </div>
+                </div>
+            </div>
+        """, unsafe_allow_html=True)
+        
+        video_file = st.file_uploader("Upload Video for Safety Analysis", type=['mp4', 'avi', 'mov'], label_visibility="collapsed")
+        audio_file = st.file_uploader("Upload Audio for Distress Analysis", type=['wav', 'mp3'], label_visibility="collapsed")
         
         if video_file is not None:
             with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as tmp_video:
@@ -399,9 +475,8 @@ def main():
         )
 
         if analyze_button:
-            if api_key:
-                analyzer = WomenSafetyAnalyzer(api_key=api_key)
-                results = analyzer.analyze_content(video_file, audio_file)
+            analyzer = WomenSafetyAnalyzer(api_key=api_key)
+            results = analyzer.analyze_content(video_file, audio_file)
                 
                 if "error" not in results:
                     risk_level = results.get("risk_level", "LOW")
