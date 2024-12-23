@@ -172,10 +172,15 @@ def main():
     with st.sidebar:
         st.markdown("""
         ### Analysis Features
+        
         • Real-time safety detection
+        
         • Harassment recognition
+        
         • Distress signal analysis
+        
         • Threat assessment
+        
         • Safety recommendations
         """)
 
