@@ -271,7 +271,16 @@ def main():
     # Default API key
     DEFAULT_API_KEY = "AIzaSyCcMZPrzP5me7Rl4pmAc1Nn5vUDSan5Q6E"
     
-    st.title("Women Safety Analysis System")
+    st.markdown("""
+        <div class="header-container">
+            <div class="flower flower-1"></div>
+            <div class="flower flower-2"></div>
+            <div class="flower flower-3"></div>
+            <div class="flower flower-4"></div>
+            <h1 class="header-title">Women Safety Analysis System</h1>
+            <p class="header-subtitle">Empowering Safety Through Technology</p>
+        </div>
+    """, unsafe_allow_html=True)
     
     st.markdown("""
         <style>
@@ -281,6 +290,57 @@ def main():
         .high-risk { color: #ff0000; font-weight: bold; }
         .medium-risk { color: #ffa500; font-weight: bold; }
         .low-risk { color: #008000; font-weight: bold; }
+        
+        /* Header Styling */
+        .header-container {
+            background: linear-gradient(135deg, #FF69B4, #FFB6C1);
+            padding: 2rem;
+            border-radius: 15px;
+            margin-bottom: 2rem;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        
+        .header-title {
+            color: white;
+            font-size: 2.5rem;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+            margin-bottom: 1rem;
+            font-family: 'Arial', sans-serif;
+        }
+        
+        .header-subtitle {
+            color: white;
+            font-size: 1.2rem;
+            margin-bottom: 1rem;
+            font-family: 'Arial', sans-serif;
+        }
+        
+        /* Flower Decorations */
+        .flower {
+            position: absolute;
+            width: 30px;
+            height: 30px;
+            background: white;
+            border-radius: 50%;
+        }
+        
+        .flower::before {
+            content: '🌸';
+            font-size: 24px;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+        
+        .flower-1 { top: 20px; left: 20px; }
+        .flower-2 { top: 20px; right: 20px; }
+        .flower-3 { bottom: 20px; left: 20px; }
+        .flower-4 { bottom: 20px; right: 20px; }
         </style>
     """, unsafe_allow_html=True)
 
