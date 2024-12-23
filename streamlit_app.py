@@ -251,27 +251,25 @@ def main():
         - Download results
         """)
 
-    # Main content area with three columns for better layout
-    col1, col2, col3 = st.columns([1, 0.2, 1])
+    # Main content area with two equal columns
+    col1, col2 = st.columns(2)
 
     with col1:
-        st.subheader("Media Upload & Playback")
+        st.subheader("Video Input")
         video_file = st.file_uploader("Upload Video", type=['mp4', 'avi', 'mov'])
-        audio_file = st.file_uploader("Upload Audio", type=['wav', 'mp3'])
         
-        # Video player
         if video_file is not None:
-            # Create a temporary file to store the video
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as tmp_video:
-                tmp_video.write(video_file.getvalue())
-                video_path = tmp_video.name
+            # File info
+            file_details = {
+                "FileName": video_file.name,
+                "FileType": video_file.type,
+                "FileSize": f"{video_file.size / 1024:.2f} KB"
+            }
+            st.write("File Details:", file_details)
             
-            # Display video player
-            st.video(video_file)
-            
-        # Audio player
-        if audio_file is not None:
-            st.audio(audio_file)
+    with col2:
+        st.subheader("Real-time Analysis")
+        st.write("Gemini's analysis will appear here as the video plays")
 
         if st.button("Analyze Content", disabled=not api_key or (not video_file and not audio_file)):
             if api_key:
