@@ -12,12 +12,12 @@ import tempfile
 
 # Must be the first Streamlit command
 st.set_page_config(
-    page_title="Content Analysis System",
-    page_icon="📊",
+    page_title="Women Safety Analysis System",
+    page_icon="🚺",
     layout="wide"
 )
 
-class ContentAnalyzer:
+class WomenSafetyAnalyzer:
     def __init__(self, api_key):
         genai.configure(api_key=api_key)
         self.model = genai.GenerativeModel(
@@ -30,7 +30,7 @@ class ContentAnalyzer:
         )
         logging.basicConfig(level=logging.INFO)
         self.logger = logging.getLogger(__name__)
-        self.output_dir = "analysis_results"
+        self.output_dir = "safety_analysis_results"
         os.makedirs(self.output_dir, exist_ok=True)
 
     def analyze_content(self, video_file, audio_file):
@@ -39,36 +39,43 @@ class ContentAnalyzer:
         try:
             results = {
                 "timestamp": datetime.now().isoformat(),
-                "video_analysis": None,
-                "audio_analysis": None
+                "video_safety_analysis": None,
+                "audio_safety_analysis": None,
+                "risk_level": None,
+                "safety_recommendations": None
             }
 
             if video_file is not None:
-                self.logger.info("Analyzing video...")
+                self.logger.info("Analyzing video for safety concerns...")
                 progress_bar.progress(25)
                 with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as tmp_video:
                     tmp_video.write(video_file.read())
-                    video_analysis = self.analyze_video(tmp_video.name)
-                    results["video_analysis"] = video_analysis
+                    video_analysis = self.analyze_video_safety(tmp_video.name)
+                    results["video_safety_analysis"] = video_analysis
                 os.unlink(tmp_video.name)
                 progress_bar.progress(75)
 
             if audio_file is not None:
-                self.logger.info("Analyzing audio...")
+                self.logger.info("Analyzing audio for distress signals...")
                 with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as tmp_audio:
                     tmp_audio.write(audio_file.read())
-                    audio_analysis = self.analyze_audio(tmp_audio.name)
-                    results["audio_analysis"] = audio_analysis
+                    audio_analysis = self.analyze_audio_safety(tmp_audio.name)
+                    results["audio_safety_analysis"] = audio_analysis
                 os.unlink(tmp_audio.name)
+
+            # Determine overall risk level
+            if results["video_safety_analysis"] or results["audio_safety_analysis"]:
+                results["risk_level"] = self.assess_risk_level(results)
+                results["safety_recommendations"] = self.generate_safety_recommendations(results["risk_level"])
 
             self.save_results(results)
             return results
 
         except Exception as e:
-            self.logger.error(f"Error in analysis: {e}")
+            self.logger.error(f"Error in safety analysis: {e}")
             return {"error": str(e)}
 
-    def analyze_video(self, video_path):
+    def analyze_video_safety(self, video_path):
         try:
             cap = cv2.VideoCapture(video_path)
             fps = cap.get(cv2.CAP_PROP_FPS)
@@ -80,6 +87,7 @@ class ContentAnalyzer:
             
             frames = []
             frame_count = 0
+            safety_concerns = []
             
             while cap.isOpened():
                 ret, frame = cap.read()
@@ -87,47 +95,78 @@ class ContentAnalyzer:
                     break
                 
                 frame_count += 1
-                if frame_count % int(fps) == 0:
+                if frame_count % int(fps) == 0:  # Analyze one frame per second
                     rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                     pil_frame = Image.fromarray(rgb_frame)
                     frames.append(pil_frame)
                     
                     progress = int((frame_count / total_frames) * 100)
                     progress_bar.progress(progress)
-                    frames_container.text(f"Processing frame {frame_count}/{total_frames}")
+                    frames_container.text(f"Analyzing frame {frame_count}/{total_frames} for safety concerns")
                     
                     if len(frames) >= 5:
-                        prompt = """
-                        Analyze these video frames for signs of harassment or concerning behavior.
-                        Focus on:
-                        1. Aggressive or threatening movements
-                        2. Signs of distress or danger
-                        3. Unsafe situations
-                        4. Suspicious patterns
-                        
-                        Based on training with Bengali content, provide a detailed assessment.
+                        safety_prompt = """
+                        Analyze these video frames specifically for women's safety concerns. Focus on detecting:
+
+                        1. Physical Safety Issues:
+                           - Unwanted physical contact or proximity
+                           - Aggressive or threatening body language
+                           - Physical harassment or assault attempts
+                           - Forceful restraint or blocking movements
+
+                        2. Signs of Distress:
+                           - Defensive body language
+                           - Signs of fear or discomfort
+                           - Attempts to create distance
+                           - Facial expressions indicating distress
+
+                        3. Environmental Safety:
+                           - Suspicious following or stalking behavior
+                           - Unwanted photography or recording
+                           - Corner or isolation tactics
+                           - Group intimidation scenarios
+
+                        4. Harassment Indicators:
+                           - Inappropriate touching or gestures
+                           - Invasion of personal space
+                           - Unwanted advances
+                           - Threatening postures
+
+                        Provide a detailed safety assessment with:
+                        - Specific safety concerns identified
+                        - Risk level (Low/Medium/High)
+                        - Timestamp of concerning behavior
+                        - Description of the concerning action
                         """
                         
                         chat = self.model.start_chat(history=[])
-                        response = chat.send_message([prompt, *frames])
+                        response = chat.send_message([safety_prompt, *frames])
                         current_time = datetime.now().strftime("%H:%M:%S")
+                        
+                        analysis_text = response.text
+                        safety_concerns.append({
+                            "timestamp": current_time,
+                            "frame_range": f"{frame_count-5} to {frame_count}",
+                            "analysis": analysis_text
+                        })
+                        
                         analysis_container.markdown(f"""
-                        ### 🎥 Analysis Update ({current_time})
+                        ### 🚨 Safety Analysis Update ({current_time})
                         **Segment:** Frames {frame_count-5} to {frame_count}
                         
-                        {response.text}
+                        {analysis_text}
                         ---
                         """)
                         frames = []
             
             cap.release()
-            return "Video analysis completed"
+            return safety_concerns
             
         except Exception as e:
-            self.logger.error(f"Error in video analysis: {e}")
+            self.logger.error(f"Error in video safety analysis: {e}")
             return None
 
-    def analyze_audio(self, audio_path):
+    def analyze_audio_safety(self, audio_path):
         try:
             y, sr = librosa.load(audio_path)
             features = {
@@ -137,70 +176,140 @@ class ContentAnalyzer:
                 'zero_crossing_rate': float(librosa.feature.zero_crossing_rate(y).mean())
             }
             
-            prompt = f"""
-            Analyze these audio characteristics for concerning content:
+            safety_audio_prompt = f"""
+            Analyze these audio characteristics specifically for women's safety concerns:
             Duration: {features['duration']:.2f} seconds
-            Energy Level: {features['rms_energy']:.4f}
-            Spectral Features: {features['spectral_centroid']:.2f}
-            Voice Patterns: {features['zero_crossing_rate']:.4f}
+            Energy Level: {features['rms_energy']:.4f} (indicating volume/intensity)
+            Spectral Features: {features['spectral_centroid']:.2f} (indicating voice pitch)
+            Voice Patterns: {features['zero_crossing_rate']:.4f} (indicating speech patterns)
             
-            Based on training with Bengali audio content:
-            1. Identify concerning speech patterns
-            2. Detect aggressive or threatening tones
-            3. Analyze emotional indicators
-            4. Note suspicious audio elements
+            Focus on detecting:
+            1. Verbal Safety Concerns:
+               - Distressed vocals or crying
+               - Verbal harassment or threats
+               - Calls for help or assistance
+               - Aggressive or threatening tones
+
+            2. Environmental Audio:
+               - Background sounds indicating unsafe situations
+               - Multiple voices indicating group harassment
+               - Sounds of pursuit or running
+               - Indicators of physical struggle
+
+            3. Emotional Indicators:
+               - Fear or panic in voice
+               - Signs of verbal intimidation
+               - Defensive or distressed responses
+               - Escalating confrontational patterns
+
+            Provide a detailed safety assessment with:
+            - Specific audio safety concerns
+            - Risk level assessment
+            - Timestamps of concerning sounds
+            - Recommended actions
             """
             
             chat = self.model.start_chat(history=[])
-            response = chat.send_message(prompt)
+            response = chat.send_message(safety_audio_prompt)
             return response.text
             
         except Exception as e:
-            self.logger.error(f"Error in audio analysis: {e}")
+            self.logger.error(f"Error in audio safety analysis: {e}")
             return None
+
+    def assess_risk_level(self, results):
+        # Analyze results to determine overall risk level
+        risk_levels = {
+            "HIGH": ["assault", "violence", "forced", "threatening", "danger", "emergency"],
+            "MEDIUM": ["harassment", "following", "uncomfortable", "suspicious", "intimidation"],
+            "LOW": ["uncertain", "possible", "mild", "potential", "unclear"]
+        }
+        
+        combined_analysis = str(results.get("video_safety_analysis", "")) + str(results.get("audio_safety_analysis", ""))
+        combined_analysis = combined_analysis.lower()
+        
+        for level, keywords in risk_levels.items():
+            if any(keyword in combined_analysis for keyword in keywords):
+                return level
+                
+        return "LOW"
+
+    def generate_safety_recommendations(self, risk_level):
+        recommendations = {
+            "HIGH": [
+                "Immediately contact emergency services (911)",
+                "Alert nearby security personnel or authorities",
+                "Document the incident with timestamps and details",
+                "Seek immediate assistance from nearby people",
+                "Move to a well-lit, populated area if possible"
+            ],
+            "MEDIUM": [
+                "Stay alert and aware of surroundings",
+                "Contact a trusted friend or family member",
+                "Move to a more populated area",
+                "Consider recording the situation discretely",
+                "Be prepared to contact authorities if situation escalates"
+            ],
+            "LOW": [
+                "Stay aware of surroundings",
+                "Trust your instincts if something feels wrong",
+                "Keep emergency contacts readily available",
+                "Consider walking with a friend or group",
+                "Note any changes in the situation"
+            ]
+        }
+        return recommendations.get(risk_level, [])
 
     def save_results(self, results):
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        output_file = os.path.join(self.output_dir, f"analysis_{timestamp}.json")
+        output_file = os.path.join(self.output_dir, f"safety_analysis_{timestamp}.json")
         with open(output_file, 'w', encoding='utf-8') as f:
             json.dump(results, f, ensure_ascii=False, indent=2)
         return output_file
 
 def main():
-    st.title("Content Analysis System")
+    # Default API key
+    DEFAULT_API_KEY = "AIzaSyCcMZPrzP5me7Rl4pmAc1Nn5vUDSan5Q6E"
+    
+    st.title("Women Safety Analysis System")
     
     st.markdown("""
         <style>
         .stVideo {width: 100%; height: auto;}
         .css-1y4p8pa {padding-top: 0rem;}
         .block-container {padding-top: 1rem;}
+        .high-risk { color: #ff0000; font-weight: bold; }
+        .medium-risk { color: #ffa500; font-weight: bold; }
+        .low-risk { color: #008000; font-weight: bold; }
         </style>
     """, unsafe_allow_html=True)
 
     with st.sidebar:
-        st.header("Configuration")
-        api_key = st.text_input("Enter Gemini API Key", type="password")
+        st.header("System Configuration")
+        api_key = st.text_input("Enter Gemini API Key (Optional)", value=DEFAULT_API_KEY, type="password")
         st.markdown("---")
         st.markdown("""
-        ### Features
-        - Real-time video analysis
-        - Audio characteristics analysis
-        - Automatic result saving
-        - Download results
+        ### Safety Analysis Features
+        - Real-time safety threat detection
+        - Distress signal analysis
+        - Risk level assessment
+        - Safety recommendations
+        - Automatic incident reporting
+        - Emergency response guidance
         """)
 
     col1, col2 = st.columns(2, gap="large")
 
     with col1:
-        st.subheader("Video Player")
-        video_file = st.file_uploader("Upload Video", type=['mp4', 'avi', 'mov'])
-        audio_file = st.file_uploader("Upload Audio", type=['wav', 'mp3'])
+        st.subheader("Video Analysis")
+        video_file = st.file_uploader("Upload Video for Safety Analysis", type=['mp4', 'avi', 'mov'])
+        audio_file = st.file_uploader("Upload Audio for Distress Analysis", type=['wav', 'mp3'])
         
         if video_file is not None:
             with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as tmp_video:
                 tmp_video.write(video_file.getbuffer())
                 st.video(tmp_video.name)
-                with st.expander("File Details"):
+                with st.expander("File Information"):
                     st.json({
                         "FileName": video_file.name,
                         "FileType": video_file.type,
@@ -212,9 +321,9 @@ def main():
                     pass
 
         if audio_file is not None:
-            st.subheader("Audio Player")
+            st.subheader("Audio Analysis")
             st.audio(audio_file)
-            with st.expander("File Details"):
+            with st.expander("File Information"):
                 st.json({
                     "FileName": audio_file.name,
                     "FileType": audio_file.type,
@@ -222,30 +331,40 @@ def main():
                 })
 
     with col2:
-        st.subheader("Real-time Analysis")
+        st.subheader("Safety Analysis Results")
         analyze_button = st.button(
-            "Start Analysis",
-            disabled=not api_key or (not video_file and not audio_file),
+            "Begin Safety Analysis",
+            disabled=(not video_file and not audio_file),
             type="primary"
         )
 
         if analyze_button:
             if api_key:
-                analyzer = ContentAnalyzer(api_key=api_key)
+                analyzer = WomenSafetyAnalyzer(api_key=api_key)
                 results = analyzer.analyze_content(video_file, audio_file)
                 
                 if "error" not in results:
-                    st.success("Analysis complete!")
+                    risk_level = results.get("risk_level", "LOW")
+                    st.markdown(f"""
+                    ### Overall Risk Assessment
+                    <div class='{risk_level.lower()}-risk'>Risk Level: {risk_level}</div>
+                    """, unsafe_allow_html=True)
+                    
+                    st.subheader("Safety Recommendations")
+                    for rec in results.get("safety_recommendations", []):
+                        st.warning(rec)
+                    
+                    st.success("Safety analysis complete!")
                     st.download_button(
-                        "Download Analysis Report (JSON)",
+                        "Download Safety Report (JSON)",
                         data=json.dumps(results, indent=2),
-                        file_name=f"analysis_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+                        file_name=f"safety_analysis_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
                         mime="application/json"
                     )
                 else:
-                    st.error(f"Analysis failed: {results['error']}")
+                    st.error(f"Safety analysis failed: {results['error']}")
             else:
-                st.warning("Please enter your Gemini API key")
+                st.warning("Please enter your Gemini API key to begin analysis")
 
 if __name__ == "__main__":
     main()
