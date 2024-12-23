@@ -207,43 +207,41 @@ class ContentAnalyzer:
 
 def main():
     st.title("Content Analysis System")
-    st.write("Upload video or audio files for real-time analysis")
     
-    # Custom CSS for video player
+    # Custom CSS for layout
     st.markdown("""
         <style>
         .stVideo {
             width: 100%;
             height: auto;
         }
+        .css-1y4p8pa {
+            padding-top: 0rem;
+        }
+        .block-container {
+            padding-top: 1rem;
+        }
         </style>
     """, unsafe_allow_html=True)
-
-    # Initialize session state for results
-    if 'results' not in st.session_state:
-        st.session_state.results = None
-    if 'results_file' not in st.session_state:
-        st.session_state.results_file = None
 
     # Sidebar for API key
     with st.sidebar:
         st.header("Configuration")
         api_key = st.text_input("Enter Gemini API Key", type="password")
-
         st.markdown("---")
         st.markdown("""
         ### Features
-        - Video content analysis
+        - Real-time video analysis
         - Audio characteristics analysis
         - Automatic result saving
         - Download results
         """)
 
-    # Main content area with two equal columns
-    col1, col2 = st.columns(2)
+    # Main content area with two columns
+    col1, col2 = st.columns(2, gap="large")
 
     with col1:
-        st.subheader("File Input")
+        st.subheader("Video Player")
         video_file = st.file_uploader("Upload Video", type=['mp4', 'avi', 'mov'])
         audio_file = st.file_uploader("Upload Audio", type=['wav', 'mp3'])
         
@@ -253,73 +251,79 @@ def main():
                 tmp_video.write(video_file.getbuffer())
                 video_path = tmp_video.name
             
-            # Video player with custom styling
-            st.video(video_path)
+            # Video player
+            st.video(video_path, start_time=0)
             
-            st.write("Video File Details:")
-            file_details = {
-                "FileName": video_file.name,
-                "FileType": video_file.type,
-                "FileSize": f"{video_file.size / 1024:.2f} KB"
-            }
-            st.write(file_details)
+            # File details in expander
+            with st.expander("File Details"):
+                st.json({
+                    "FileName": video_file.name,
+                    "FileType": video_file.type,
+                    "FileSize": f"{video_file.size / 1024:.2f} KB"
+                })
             
             # Clean up temp file
             try:
                 os.unlink(video_path)
             except:
                 pass
-            
+
         if audio_file is not None:
-            st.write("Audio File Details:")
-            file_details = {
-                "FileName": audio_file.name,
-                "FileType": audio_file.type,
-                "FileSize": f"{audio_file.size / 1024:.2f} KB"
-            }
-            st.write(file_details)
-            
-            # Add audio player if audio file is uploaded
+            st.subheader("Audio Player")
             st.audio(audio_file)
-            
+            with st.expander("File Details"):
+                st.json({
+                    "FileName": audio_file.name,
+                    "FileType": audio_file.type,
+                    "FileSize": f"{audio_file.size / 1024:.2f} KB"
+                })
+
     with col2:
         st.subheader("Real-time Analysis")
-        st.write("Gemini's analysis will appear here as the video plays")
+        analyze_button = st.button(
+            "Start Analysis", 
+            disabled=not api_key or (not video_file and not audio_file),
+            type="primary"
+        )
 
-        if st.button("Analyze Content", disabled=not api_key or (not video_file and not audio_file)):
+        if analyze_button:
             if api_key:
-                with st.spinner("Analyzing content..."):
+                with st.spinner("Initializing analysis..."):
                     analyzer = ContentAnalyzer(api_key=api_key)
-                    st.session_state.results = analyzer.analyze_content(video_file, audio_file)
+                    
+                    # Create containers for live updates
+                    progress_container = st.container()
+                    analysis_container = st.container()
+                    
+                    with progress_container:
+                        st.markdown("### Analysis Progress")
+                        progress_bar = st.progress(0)
+                        status = st.empty()
+                    
+                    with analysis_container:
+                        st.markdown("### Live Analysis")
+                        analysis_placeholder = st.empty()
+                    
+                    # Start analysis
+                    st.session_state.results = analyzer.analyze_content(
+                        video_file, 
+                        audio_file
+                    )
+                    
                     if "error" not in st.session_state.results:
                         st.success("Analysis complete!")
+                        
+                        # Show download button
+                        st.download_button(
+                            label="Download Analysis Report (JSON)",
+                            data=json.dumps(st.session_state.results, indent=2),
+                            file_name=f"analysis_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+                            mime="application/json"
+                        )
                     else:
                         st.error(f"Analysis failed: {st.session_state.results['error']}")
             else:
                 st.warning("Please enter your Gemini API key")
-
-    # Display results if available
-    if st.session_state.results and "error" not in st.session_state.results:
-        st.markdown("### Analysis Results")
-        st.text(f"🕒 Analysis completed at: {st.session_state.results['timestamp']}")
-
-        if st.session_state.results["video_analysis"]:
-            st.markdown("### 🎥 Video Analysis")
-            st.markdown("---")
-            st.write(st.session_state.results["video_analysis"])
-
-        if st.session_state.results["audio_analysis"]:
-            st.markdown("### 🔊 Audio Analysis")
-            st.markdown("---")
-            st.write(st.session_state.results["audio_analysis"])
-
-        # Download button
-        st.download_button(
-            label="Download Results (JSON)",
-            data=json.dumps(st.session_state.results, indent=2),
-            file_name=f"analysis_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
-            mime="application/json"
-        )
 
 if __name__ == "__main__":
     main()
