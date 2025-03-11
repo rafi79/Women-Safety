@@ -3,12 +3,12 @@ import google.generativeai as genai
 import cv2
 import numpy as np
 from PIL import Image
-import librosa
 import os
 import json
 from datetime import datetime
 import logging
 import tempfile
+import soundfile as sf  # Alternative to librosa for basic audio loading
 
 # Configure Streamlit page
 st.set_page_config(
@@ -28,6 +28,7 @@ st.markdown("""
 
 class WomenSafetyAnalyzer:
     def __init__(self):
+        # Configure Google Generative AI
         genai.configure(api_key="AIzaSyAnP99siTh3kaaayNPBcj_y1HwP1PCrxjo")
         self.model = genai.GenerativeModel(
             model_name="gemini-2.0-flash",
@@ -37,6 +38,7 @@ class WomenSafetyAnalyzer:
                 "max_output_tokens": 8192,
             }
         )
+        # Configure logging
         logging.basicConfig(level=logging.INFO)
         self.logger = logging.getLogger(__name__)
 
@@ -59,7 +61,7 @@ class WomenSafetyAnalyzer:
                     break
                 
                 frame_count += 1
-                if frame_count % int(fps) == 0:
+                if frame_count % int(fps) == 0:  # Sample one frame per second
                     rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                     pil_frame = Image.fromarray(rgb_frame)
                     frames.append(pil_frame)
@@ -68,7 +70,7 @@ class WomenSafetyAnalyzer:
                     progress_bar.progress(progress)
                     status_text.text(f"Analyzing frame {frame_count}/{total_frames}")
                     
-                    if len(frames) >= 5:
+                    if len(frames) >= 5:  # Analyze in batches of 5 frames
                         safety_prompt = """
                         Analyze these frames for women's safety concerns, focusing on:
                         • Unwanted physical contact or assault
@@ -91,29 +93,33 @@ class WomenSafetyAnalyzer:
                         chat = self.model.start_chat(history=[])
                         response = chat.send_message([safety_prompt, *frames])
                         safety_concerns.append(response.text)
-                        frames = []
+                        frames = []  # Reset frames for next batch
             
             cap.release()
+            progress_bar.progress(100)
+            status_text.text("Video analysis complete")
             return safety_concerns
             
         except Exception as e:
             self.logger.error(f"Error in video analysis: {e}")
+            st.error(f"Video analysis error: {e}")
             return None
 
     def analyze_audio_safety(self, audio_path):
         try:
-            y, sr = librosa.load(audio_path)
-            features = {
-                'duration': float(len(y) / sr),
-                'rms_energy': float(librosa.feature.rms(y=y).mean()),
-                'spectral_centroid': float(librosa.feature.spectral_centroid(y=y).mean()),
-                'zero_crossing_rate': float(librosa.feature.zero_crossing_rate(y).mean())
-            }
+            # Use soundfile instead of librosa for compatibility with Python 3.12
+            data, sample_rate = sf.read(audio_path)
+            
+            # Basic audio features (simplified without librosa)
+            duration = len(data) / sample_rate
+            
+            # Use NumPy for basic audio analysis
+            rms_energy = np.sqrt(np.mean(np.square(data)))
             
             audio_prompt = f"""
             Analyze these audio characteristics for signs of distress or safety concerns:
-            Duration: {features['duration']:.2f} seconds
-            Energy Level: {features['rms_energy']:.4f}
+            Duration: {duration:.2f} seconds
+            Energy Level: {rms_energy:.4f}
             
             Focus on detecting:
             • Distressed vocals or crying
@@ -136,6 +142,7 @@ class WomenSafetyAnalyzer:
         
         except Exception as e:
             self.logger.error(f"Error in audio analysis: {e}")
+            st.error(f"Audio analysis error: {e}")
             return None
 
     def analyze_content(self, video_file, audio_file):
@@ -148,14 +155,18 @@ class WomenSafetyAnalyzer:
         if video_file:
             with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as tmp_video:
                 tmp_video.write(video_file.read())
-                results["video_analysis"] = self.analyze_video_safety(tmp_video.name)
-            os.unlink(tmp_video.name)
+                tmp_path = tmp_video.name
+            
+            results["video_analysis"] = self.analyze_video_safety(tmp_path)
+            os.unlink(tmp_path)
 
         if audio_file:
             with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as tmp_audio:
                 tmp_audio.write(audio_file.read())
-                results["audio_analysis"] = self.analyze_audio_safety(tmp_audio.name)
-            os.unlink(tmp_audio.name)
+                tmp_path = tmp_audio.name
+                
+            results["audio_analysis"] = self.analyze_audio_safety(tmp_path)
+            os.unlink(tmp_path)
 
         return results
 
@@ -182,6 +193,18 @@ def main():
         • Threat assessment
         
         • Safety recommendations
+        """)
+        
+        # Add dependency information
+        st.markdown("---")
+        st.markdown("""
+        ### System Information
+        This application requires:
+        - Python 3.8-3.9 (recommended)
+        - OpenCV
+        - Google Generative AI
+        - Streamlit
+        - SoundFile (for audio analysis)
         """)
 
     # Main content
@@ -225,15 +248,28 @@ def main():
                     st.markdown("""
                         <div style='background: linear-gradient(45deg, #2b1f47, #1a1a2e); border-radius: 15px; padding: 1.5rem; margin: 1rem 0; box-shadow: 0 4px 15px rgba(0,0,0,0.2);'>
                             <h3 style='color: #FF69B4; margin-bottom: 1rem;'>Safety Assessment</h3>
-                            <div style='background: rgba(255,255,255,0.05); padding: 1rem; border-radius: 8px;'>
                     """, unsafe_allow_html=True)
                     
                     if results.get("video_analysis"):
-                        analysis_text = results["video_analysis"][0] if results["video_analysis"] else ""
-                        st.markdown(f"<div style='color: white;'>{analysis_text}</div>", unsafe_allow_html=True)
+                        st.markdown("<h4 style='color: white;'>Video Analysis:</h4>", unsafe_allow_html=True)
+                        for i, analysis in enumerate(results["video_analysis"]):
+                            st.markdown(f"""
+                                <div style='background: rgba(255,255,255,0.05); padding: 1rem; border-radius: 8px; margin-bottom: 0.5rem;'>
+                                    <div style='color: white;'>{analysis}</div>
+                                </div>
+                            """, unsafe_allow_html=True)
                     
-                    st.markdown("</div></div>", unsafe_allow_html=True)
+                    if results.get("audio_analysis"):
+                        st.markdown("<h4 style='color: white;'>Audio Analysis:</h4>", unsafe_allow_html=True)
+                        st.markdown(f"""
+                            <div style='background: rgba(255,255,255,0.05); padding: 1rem; border-radius: 8px;'>
+                                <div style='color: white;'>{results["audio_analysis"]}</div>
+                            </div>
+                        """, unsafe_allow_html=True)
                     
+                    st.markdown("</div>", unsafe_allow_html=True)
+                    
+                    # Download button for report
                     st.download_button(
                         label="Download Safety Report",
                         data=json.dumps(results, indent=2),
@@ -243,6 +279,18 @@ def main():
                     )
                 else:
                     st.error("Analysis failed or no safety concerns detected.")
+                    
+        # Add information about system usage
+        with st.expander("How to use this system"):
+            st.markdown("""
+            1. **Upload Media**: Add video and/or audio files for analysis
+            2. **Begin Analysis**: Click the analysis button to start the AI-powered safety assessment
+            3. **Review Results**: The system will highlight potential safety concerns and their severity
+            4. **Download Report**: Save the analysis for documentation or further action
+            
+            This system is designed to assist in identifying potential safety concerns for women in various environments.
+            It is not a replacement for emergency services - if you suspect immediate danger, contact local authorities.
+            """)
 
 if __name__ == "__main__":
     main()
