@@ -1,14 +1,12 @@
 import streamlit as st
-import google.generativeai as genai
-import cv2
-import numpy as np
-from PIL import Image
 import os
 import json
+import tempfile
 from datetime import datetime
 import logging
-import tempfile
-import soundfile as sf  # Alternative to librosa for basic audio loading
+import numpy as np
+from PIL import Image
+import cv2
 
 # Configure Streamlit page
 st.set_page_config(
@@ -26,27 +24,56 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
+# Configure logging - direct to streamlit
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Mock AI model for testing (remove AI dependency for debugging)
+class MockAIModel:
+    def analyze_frames(self, frames):
+        return """
+        Safety Assessment:
+        - Type of concern: Potential intimidation scenario detected
+        - Severity: Medium
+        - Recommendation: Increased awareness advised in this environment
+        
+        The video shows a situation that could potentially escalate, with signs of 
+        uncomfortable body language and positioning that may indicate unwanted attention
+        or intimidation. Monitoring is recommended.
+        """
+    
+    def analyze_audio(self, duration, energy):
+        return """
+        Audio Analysis:
+        - Type of concern: Elevated vocal stress detected
+        - Urgency: Medium
+        - Recommendation: Follow-up monitoring recommended
+        
+        The audio contains patterns consistent with distress or discomfort, 
+        though not immediate danger. The energy levels and patterns suggest 
+        an uncomfortable situation that should be monitored.
+        """
+
 class WomenSafetyAnalyzer:
     def __init__(self):
-        # Configure Google Generative AI
-        genai.configure(api_key="AIzaSyAnP99siTh3kaaayNPBcj_y1HwP1PCrxjo")
-        self.model = genai.GenerativeModel(
-            model_name="gemini-2.0-flash",
-            generation_config={
-                "temperature": 0.3,
-                "top_p": 0.95,
-                "max_output_tokens": 8192,
-            }
-        )
-        # Configure logging
-        logging.basicConfig(level=logging.INFO)
-        self.logger = logging.getLogger(__name__)
-
+        # Use mock AI for testing
+        self.model = MockAIModel()
+        
     def analyze_video_safety(self, video_path):
         try:
+            st.info("Starting video analysis...")
             cap = cv2.VideoCapture(video_path)
+            
+            if not cap.isOpened():
+                st.error(f"Failed to open video file: {video_path}")
+                return ["Failed to open video file"]
+                
             fps = cap.get(cv2.CAP_PROP_FPS)
             total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            
+            if total_frames <= 0:
+                st.warning("Video appears to be empty or unreadable")
+                return ["Video appears to be empty or unreadable"]
             
             progress_bar = st.progress(0)
             status_text = st.empty()
@@ -55,95 +82,68 @@ class WomenSafetyAnalyzer:
             frame_count = 0
             safety_concerns = []
             
+            # Debug info
+            st.write(f"Video info: {fps} FPS, {total_frames} frames")
+            
+            # Process less frames for testing
+            sample_rate = max(int(fps), 1) * 5  # One frame every 5 seconds
+            
             while cap.isOpened():
                 ret, frame = cap.read()
                 if not ret:
                     break
                 
                 frame_count += 1
-                if frame_count % int(fps) == 0:  # Sample one frame per second
-                    rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                    pil_frame = Image.fromarray(rgb_frame)
-                    frames.append(pil_frame)
-                    
+                
+                # Update progress more frequently
+                if frame_count % 10 == 0:
                     progress = int((frame_count / total_frames) * 100)
                     progress_bar.progress(progress)
                     status_text.text(f"Analyzing frame {frame_count}/{total_frames}")
+                
+                if frame_count % sample_rate == 0:
+                    rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    frames.append(rgb_frame)
                     
-                    if len(frames) >= 5:  # Analyze in batches of 5 frames
-                        safety_prompt = """
-                        Analyze these frames for women's safety concerns, focusing on:
-                        • Unwanted physical contact or assault
-                        • Sexual harassment or inappropriate behavior
-                        • Stalking or following behavior
-                        • Threatening gestures or postures
-                        • Signs of distress or fear
-                        • Group intimidation
-                        • Workplace harassment
-                        • Public transport safety issues
-                        • Domestic violence indicators
-                        • Unsafe environment conditions
-                        
-                        Provide a clear assessment of:
-                        1. Type of safety threat detected
-                        2. Severity level of the concern
-                        3. Immediate action recommendations
-                        """
-                        
-                        chat = self.model.start_chat(history=[])
-                        response = chat.send_message([safety_prompt, *frames])
-                        safety_concerns.append(response.text)
-                        frames = []  # Reset frames for next batch
+                    # Analyze after collecting enough frames or at the end
+                    if len(frames) >= 3 or frame_count >= total_frames-10:
+                        status_text.text(f"Running AI analysis on collected frames...")
+                        # Use mock AI for predictable testing
+                        analysis = self.model.analyze_frames(frames)
+                        safety_concerns.append(analysis)
+                        frames = []
             
             cap.release()
             progress_bar.progress(100)
             status_text.text("Video analysis complete")
+            
+            # Ensure we return something even if no frames were processed
+            if not safety_concerns:
+                safety_concerns = ["No significant safety concerns detected in the video."]
+                
             return safety_concerns
             
         except Exception as e:
-            self.logger.error(f"Error in video analysis: {e}")
-            st.error(f"Video analysis error: {e}")
-            return None
+            logger.error(f"Error in video analysis: {e}")
+            st.error(f"Video analysis error: {str(e)}")
+            return [f"Error: {str(e)}"]
 
     def analyze_audio_safety(self, audio_path):
         try:
-            # Use soundfile instead of librosa for compatibility with Python 3.12
-            data, sample_rate = sf.read(audio_path)
+            st.info("Starting audio analysis...")
             
-            # Basic audio features (simplified without librosa)
-            duration = len(data) / sample_rate
+            # Mock audio analysis to avoid dependencies
+            duration = 30.0  # seconds
+            rms_energy = 0.18  # mock value
             
-            # Use NumPy for basic audio analysis
-            rms_energy = np.sqrt(np.mean(np.square(data)))
-            
-            audio_prompt = f"""
-            Analyze these audio characteristics for signs of distress or safety concerns:
-            Duration: {duration:.2f} seconds
-            Energy Level: {rms_energy:.4f}
-            
-            Focus on detecting:
-            • Distressed vocals or crying
-            • Verbal harassment or threats
-            • Calls for help
-            • Aggressive or threatening tones
-            • Signs of struggle or distress
-            • Verbal abuse indicators
-            • Emergency situations
-            
-            Provide analysis of:
-            1. Type of audio threat detected
-            2. Urgency level of the situation
-            3. Recommended response actions
-            """
-            
-            chat = self.model.start_chat(history=[])
-            response = chat.send_message(audio_prompt)
-            return response.text
+            # Use mock AI for testing
+            analysis = self.model.analyze_audio(duration, rms_energy)
+            return analysis
         
         except Exception as e:
-            self.logger.error(f"Error in audio analysis: {e}")
-            st.error(f"Audio analysis error: {e}")
-            return None
+            logger.error(f"Error in audio analysis: {e}")
+            st.error(f"Audio analysis error: {str(e)}")
+            return f"Error: {str(e)}"
 
     def analyze_content(self, video_file, audio_file):
         results = {
@@ -153,20 +153,35 @@ class WomenSafetyAnalyzer:
         }
 
         if video_file:
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as tmp_video:
-                tmp_video.write(video_file.read())
-                tmp_path = tmp_video.name
-            
-            results["video_analysis"] = self.analyze_video_safety(tmp_path)
-            os.unlink(tmp_path)
+            try:
+                with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as tmp_video:
+                    tmp_video.write(video_file.getvalue())
+                    tmp_path = tmp_video.name
+                
+                st.write(f"Saved video to temporary file: {tmp_path}")
+                results["video_analysis"] = self.analyze_video_safety(tmp_path)
+                
+                # Clean up
+                if os.path.exists(tmp_path):
+                    os.unlink(tmp_path)
+            except Exception as e:
+                st.error(f"Error processing video: {str(e)}")
+                results["video_analysis"] = [f"Error: {str(e)}"]
 
         if audio_file:
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as tmp_audio:
-                tmp_audio.write(audio_file.read())
-                tmp_path = tmp_audio.name
+            try:
+                with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as tmp_audio:
+                    tmp_audio.write(audio_file.getvalue())
+                    tmp_path = tmp_audio.name
                 
-            results["audio_analysis"] = self.analyze_audio_safety(tmp_path)
-            os.unlink(tmp_path)
+                results["audio_analysis"] = self.analyze_audio_safety(tmp_path)
+                
+                # Clean up
+                if os.path.exists(tmp_path):
+                    os.unlink(tmp_path)
+            except Exception as e:
+                st.error(f"Error processing audio: {str(e)}")
+                results["audio_analysis"] = f"Error: {str(e)}"
 
         return results
 
@@ -178,6 +193,9 @@ def main():
             <p style='color: white; font-size: 1.2rem;'>Empowering Safety Through Technology</p>
         </div>
     """, unsafe_allow_html=True)
+
+    # Debug info - show this first
+    st.write("Application started. Debug mode enabled.")
 
     # Sidebar
     with st.sidebar:
@@ -199,12 +217,7 @@ def main():
         st.markdown("---")
         st.markdown("""
         ### System Information
-        This application requires:
-        - Python 3.8-3.9 (recommended)
-        - OpenCV
-        - Google Generative AI
-        - Streamlit
-        - SoundFile (for audio analysis)
+        This is a test version with mock AI responses.
         """)
 
     # Main content
@@ -228,21 +241,33 @@ def main():
         audio_file = st.file_uploader("Upload audio", type=['wav', 'mp3'], label_visibility="collapsed")
 
         if video_file:
+            st.write("Video preview:")
             st.video(video_file)
         if audio_file:
+            st.write("Audio preview:")
             st.audio(audio_file)
 
     with col2:
         st.subheader("Analysis Results")
+        
+        # Add debug button
+        if st.button("Test Connection", key="test_connection"):
+            st.success("Application is responding correctly!")
+        
         analyze_button = st.button("Begin Safety Analysis", 
                                 type="primary",
                                 use_container_width=True,
                                 disabled=(not video_file and not audio_file))
 
         if analyze_button:
+            st.write("Analysis button clicked")
             analyzer = WomenSafetyAnalyzer()
+            
             with st.spinner("Analyzing content for safety concerns..."):
                 results = analyzer.analyze_content(video_file, audio_file)
+                
+                # Always show results structure for debugging
+                st.write("Results structure:", type(results))
                 
                 if results.get("video_analysis") or results.get("audio_analysis"):
                     st.markdown("""
@@ -293,4 +318,8 @@ def main():
             """)
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as e:
+        st.error(f"Application error: {str(e)}")
+        st.exception(e)
