@@ -28,7 +28,7 @@ st.markdown("""
 
 class WomenSafetyAnalyzer:
     def __init__(self):
-        genai.configure(api_key="AIzaSyCcMZPrzP5me7Rl4pmAc1Nn5vUDSan5Q6E")
+        genai.configure(api_key="AIzaSyAnP99siTh3kaaayNPBcj_y1HwP1PCrxjo")
         self.model = genai.GenerativeModel(
             model_name="gemini-1.5-flash",
             generation_config={
