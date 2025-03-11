@@ -30,7 +30,7 @@ class WomenSafetyAnalyzer:
     def __init__(self):
         genai.configure(api_key="AIzaSyAnP99siTh3kaaayNPBcj_y1HwP1PCrxjo")
         self.model = genai.GenerativeModel(
-            model_name="gemini-1.5-flash",
+            model_name="gemini-2.0-flash",
             generation_config={
                 "temperature": 0.3,
                 "top_p": 0.95,
